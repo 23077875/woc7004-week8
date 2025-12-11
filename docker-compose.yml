@@ -181,6 +181,24 @@ services:
     stdin_open: true
     tty: true
 
+  # k6 Load Testing
+  k6:
+    image: grafana/k6:latest
+    container_name: k6-load-test
+    profiles: ["test"]
+    networks:
+      - restaurant-network
+    volumes:
+      - ./k6:/scripts
+    depends_on:
+      - kong
+      - order-service
+      - notification-service
+    command: run /scripts/load-normal.js
+    environment:
+      K6_OUT: json=/scripts/results.json
+      KONG_URL: http://kong:8000/orders
+
   # Kong Configuration Service
   kong-config:
     image: curlimages/curl:latest
