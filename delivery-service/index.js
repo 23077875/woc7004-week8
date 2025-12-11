@@ -33,6 +33,15 @@ db.serialize(() => {
   );
 });
 
+function runAsync(dbConn, sql, params = []) {
+  return new Promise((resolve, reject) => {
+    dbConn.run(sql, params, (err) => {
+      if (err) return reject(err);
+      resolve();
+    });
+  });
+}
+
 let channel = null;
 let connection = null;
 const EXCHANGE = 'food_events';
@@ -71,55 +80,62 @@ async function connectRabbitMQ() {
 
     channel.consume(
       INPUT_QUEUE,
-      (msg) => {
+      async (msg) => {
         if (!msg) return;
-        const accepted = JSON.parse(msg.content.toString());
-        const driverName = pickDriver();
-        const assignedAt = new Date().toISOString();
-        const etaMinutes = Math.max(5, (accepted.etaMinutes || 15) - 5);
+        try {
+          const accepted = JSON.parse(msg.content.toString());
+          const driverName = pickDriver();
+          const assignedAt = new Date().toISOString();
+          const etaMinutes = Math.max(5, (accepted.etaMinutes || 15) - 5);
 
-        const assignment = {
-          orderId: accepted.orderId,
-          driverName,
-          status: 'driver_assigned',
-          etaMinutes,
-          assignedAt,
-          restaurant: accepted.restaurant,
-          customerName: accepted.customerName,
-          items: accepted.items,
-          totalAmount: accepted.totalAmount
-        };
+          const assignment = {
+            orderId: accepted.orderId,
+            driverName,
+            status: 'driver_assigned',
+            etaMinutes,
+            assignedAt,
+            restaurant: accepted.restaurant,
+            customerName: accepted.customerName,
+            items: accepted.items,
+            totalAmount: accepted.totalAmount
+          };
 
-        db.run(
-          `INSERT INTO delivery_events (orderId, driverName, status, etaMinutes, payload, createdAt)
-           VALUES (?, ?, ?, ?, ?, ?)`,
-          [
-            assignment.orderId,
-            assignment.driverName,
-            assignment.status,
-            assignment.etaMinutes,
-            JSON.stringify(assignment),
-            assignedAt
-          ],
-          (err) => {
-            if (err) {
-              console.error('Failed to persist delivery event:', err);
+          await runAsync(
+            db,
+            `INSERT INTO delivery_events (orderId, driverName, status, etaMinutes, payload, createdAt)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [
+              assignment.orderId,
+              assignment.driverName,
+              assignment.status,
+              assignment.etaMinutes,
+              JSON.stringify(assignment),
+              assignedAt
+            ]
+          );
+
+          channel.publish(
+            EXCHANGE,
+            'delivery.assigned',
+            Buffer.from(JSON.stringify(assignment)),
+            { persistent: true }
+          );
+
+          console.log('Driver assigned', {
+            orderId: assignment.orderId,
+            driver: assignment.driverName
+          });
+          channel.ack(msg);
+        } catch (err) {
+          console.error('Failed to process delivery assignment:', err);
+          if (msg) {
+            try {
+              channel.nack(msg, false, true);
+            } catch (nackErr) {
+              console.error('Failed to nack message:', nackErr);
             }
           }
-        );
-
-        channel.publish(
-          EXCHANGE,
-          'delivery.assigned',
-          Buffer.from(JSON.stringify(assignment)),
-          { persistent: true }
-        );
-
-        console.log('Driver assigned', {
-          orderId: assignment.orderId,
-          driver: assignment.driverName
-        });
-        channel.ack(msg);
+        }
       },
       { noAck: false }
     );
@@ -146,7 +162,9 @@ app.get('/health', (_req, res) => {
 
 app.get('/delivery/events', (req, res) => {
   const { orderId, limit = 100 } = req.query;
-  const boundedLimit = Math.min(parseInt(limit, 10) || 100, 500);
+  const parsedLimit = parseInt(limit, 10);
+  const safeLimit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : 100;
+  const boundedLimit = Math.min(safeLimit, 500);
   const params = [];
   let sql = `SELECT * FROM delivery_events`;
   if (orderId) {

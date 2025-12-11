@@ -31,6 +31,15 @@ db.serialize(() => {
   );
 });
 
+function runAsync(dbConn, sql, params = []) {
+  return new Promise((resolve, reject) => {
+    dbConn.run(sql, params, (err) => {
+      if (err) return reject(err);
+      resolve();
+    });
+  });
+}
+
 let channel = null;
 let connection = null;
 const EXCHANGE = 'food_events';
@@ -61,29 +70,35 @@ async function connectRabbitMQ() {
 
     channel.consume(
       NOTIFICATIONS_QUEUE,
-      (msg) => {
-        if (msg) {
+      async (msg) => {
+        if (!msg) return;
+        try {
           const payload = JSON.parse(msg.content.toString());
           const routingKey = msg.fields.routingKey;
           const createdAt = new Date().toISOString();
 
-          db.run(
+          await runAsync(
+            db,
             `INSERT INTO notifications (orderId, eventType, payload, createdAt) VALUES (?, ?, ?, ?)`,
             [
               payload.orderId || null,
               routingKey,
               JSON.stringify(payload),
               createdAt
-            ],
-            (err) => {
-              if (err) {
-                console.error('Failed to persist notification:', err);
-              }
-            }
+            ]
           );
 
           console.log('Notification received', { routingKey, orderId: payload.orderId });
           channel.ack(msg);
+        } catch (err) {
+          console.error('Failed to process notification:', err);
+          if (msg) {
+            try {
+              channel.nack(msg, false, true);
+            } catch (nackErr) {
+              console.error('Failed to nack message:', nackErr);
+            }
+          }
         }
       },
       { noAck: false }
@@ -114,7 +129,9 @@ app.get('/health', (_req, res) => {
 // Get notifications (latest 100, optional orderId filter)
 app.get('/notifications', (req, res) => {
   const { orderId, limit = 100 } = req.query;
-  const boundedLimit = Math.min(parseInt(limit, 10) || 100, 500);
+  const parsedLimit = parseInt(limit, 10);
+  const safeLimit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : 100;
+  const boundedLimit = Math.min(safeLimit, 500);
   const params = [];
   let sql = `SELECT * FROM notifications`;
   if (orderId) {
@@ -129,13 +146,21 @@ app.get('/notifications', (req, res) => {
       console.error('Error reading notifications:', err);
       return res.status(500).json({ error: 'Failed to read notifications' });
     }
-    const parsed = rows.map((r) => ({
-      id: r.id,
-      orderId: r.orderId,
-      eventType: r.eventType,
-      createdAt: r.createdAt,
-      payload: JSON.parse(r.payload)
-    }));
+    const parsed = rows.map((r) => {
+      const payload = JSON.parse(r.payload);
+      return {
+        id: r.id,
+        orderId: r.orderId,
+        eventType: r.eventType,
+        createdAt: r.createdAt,
+        timestamp: payload.timestamp || payload.createdAt || r.createdAt,
+        customerName: payload.customerName,
+        items: payload.items,
+        totalAmount: payload.totalAmount,
+        status: payload.status || r.eventType,
+        payload
+      };
+    });
     res.json(parsed);
   });
 });
@@ -151,12 +176,18 @@ app.get('/notifications/id/:id', (req, res) => {
         return res.status(500).json({ error: 'Failed to read notification' });
       }
       if (!row) return res.status(404).json({ error: 'Notification not found' });
+      const payload = JSON.parse(row.payload);
       res.json({
         id: row.id,
         orderId: row.orderId,
         eventType: row.eventType,
         createdAt: row.createdAt,
-        payload: JSON.parse(row.payload)
+        timestamp: payload.timestamp || payload.createdAt || row.createdAt,
+        customerName: payload.customerName,
+        items: payload.items,
+        totalAmount: payload.totalAmount,
+        status: payload.status || row.eventType,
+        payload
       });
     }
   );
@@ -173,12 +204,18 @@ app.get('/notifications/order/:orderId', (req, res) => {
         return res.status(500).json({ error: 'Failed to read notification' });
       }
       if (!row) return res.status(404).json({ error: 'Notification not found' });
+      const payload = JSON.parse(row.payload);
       res.json({
         id: row.id,
         orderId: row.orderId,
         eventType: row.eventType,
         createdAt: row.createdAt,
-        payload: JSON.parse(row.payload)
+        timestamp: payload.timestamp || payload.createdAt || row.createdAt,
+        customerName: payload.customerName,
+        items: payload.items,
+        totalAmount: payload.totalAmount,
+        status: payload.status || row.eventType,
+        payload
       });
     }
   );

@@ -34,6 +34,15 @@ db.serialize(() => {
   );
 });
 
+function runAsync(dbConn, sql, params = []) {
+  return new Promise((resolve, reject) => {
+    dbConn.run(sql, params, (err) => {
+      if (err) return reject(err);
+      resolve();
+    });
+  });
+}
+
 let channel = null;
 let connection = null;
 const EXCHANGE = 'food_events';
@@ -76,51 +85,58 @@ async function connectRabbitMQ() {
       INPUT_QUEUE,
       async (msg) => {
         if (!msg) return;
-        const order = JSON.parse(msg.content.toString());
-        const acceptedAt = new Date().toISOString();
-        const etaMinutes = assignEta();
+        try {
+          const order = JSON.parse(msg.content.toString());
+          const acceptedAt = new Date().toISOString();
+          const etaMinutes = assignEta();
 
-        const acceptance = {
-          orderId: order.orderId,
-          customerName: order.customerName,
-          items: order.items,
-          totalAmount: order.totalAmount,
-          status: 'accepted',
-          restaurant: RESTAURANT_NAME,
-          etaMinutes,
-          acceptedAt
-        };
-
-        db.run(
-          `INSERT INTO restaurant_events (orderId, restaurantName, status, etaMinutes, payload, createdAt)
-           VALUES (?, ?, ?, ?, ?, ?)`,
-          [
-            acceptance.orderId,
-            acceptance.restaurant,
-            acceptance.status,
-            acceptance.etaMinutes,
-            JSON.stringify(acceptance),
+          const acceptance = {
+            orderId: order.orderId,
+            customerName: order.customerName,
+            items: order.items,
+            totalAmount: order.totalAmount,
+            status: 'accepted',
+            restaurant: RESTAURANT_NAME,
+            etaMinutes,
             acceptedAt
-          ],
-          (err) => {
-            if (err) {
-              console.error('Failed to persist restaurant event:', err);
+          };
+
+          await runAsync(
+            db,
+            `INSERT INTO restaurant_events (orderId, restaurantName, status, etaMinutes, payload, createdAt)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [
+              acceptance.orderId,
+              acceptance.restaurant,
+              acceptance.status,
+              acceptance.etaMinutes,
+              JSON.stringify(acceptance),
+              acceptedAt
+            ]
+          );
+
+          channel.publish(
+            EXCHANGE,
+            'restaurant.accepted',
+            Buffer.from(JSON.stringify(acceptance)),
+            { persistent: true }
+          );
+
+          console.log('Order accepted by restaurant', {
+            orderId: acceptance.orderId,
+            etaMinutes
+          });
+          channel.ack(msg);
+        } catch (err) {
+          console.error('Failed to process restaurant acceptance:', err);
+          if (msg) {
+            try {
+              channel.nack(msg, false, true);
+            } catch (nackErr) {
+              console.error('Failed to nack message:', nackErr);
             }
           }
-        );
-
-        channel.publish(
-          EXCHANGE,
-          'restaurant.accepted',
-          Buffer.from(JSON.stringify(acceptance)),
-          { persistent: true }
-        );
-
-        console.log('Order accepted by restaurant', {
-          orderId: acceptance.orderId,
-          etaMinutes
-        });
-        channel.ack(msg);
+        }
       },
       { noAck: false }
     );
@@ -147,7 +163,9 @@ app.get('/health', (_req, res) => {
 
 app.get('/restaurant/events', (req, res) => {
   const { orderId, limit = 100 } = req.query;
-  const boundedLimit = Math.min(parseInt(limit, 10) || 100, 500);
+  const parsedLimit = parseInt(limit, 10);
+  const safeLimit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : 100;
+  const boundedLimit = Math.min(safeLimit, 500);
   const params = [];
   let sql = `SELECT * FROM restaurant_events`;
   if (orderId) {

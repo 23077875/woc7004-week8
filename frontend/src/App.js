@@ -108,18 +108,30 @@ function App() {
                     <td colSpan="6" style={{ textAlign: 'center' }}>No notifications yet</td>
                   </tr>
                 ) : (
-                  notifications.map((notification, index) => (
-                    <tr key={index}>
-                      <td>{new Date(notification.timestamp).toLocaleTimeString()}</td>
-                      <td>{notification.orderId}</td>
-                      <td>{notification.customerName}</td>
-                      <td>{notification.items?.join(', ')}</td>
-                      <td>${notification.totalAmount?.toFixed(2)}</td>
-                      <td>
-                        <span className="status-badge">{notification.status}</span>
-                      </td>
-                    </tr>
-                  ))
+                  notifications.map((notification, index) => {
+                    const payload = notification.payload || {};
+                    const time =
+                      notification.timestamp ||
+                      notification.createdAt ||
+                      payload.timestamp ||
+                      payload.createdAt;
+                    const customer = notification.customerName || payload.customerName;
+                    const items = notification.items || payload.items;
+                    const amount = notification.totalAmount || payload.totalAmount;
+                    const status = notification.status || payload.status || notification.eventType;
+                    return (
+                      <tr key={index}>
+                        <td>{time ? new Date(time).toLocaleTimeString() : '—'}</td>
+                        <td>{notification.orderId}</td>
+                        <td>{customer || '—'}</td>
+                        <td>{items?.join(', ') || '—'}</td>
+                        <td>{amount !== undefined ? `$${Number(amount).toFixed(2)}` : '—'}</td>
+                        <td>
+                          <span className="status-badge">{status || '—'}</span>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>

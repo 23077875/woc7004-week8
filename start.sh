@@ -6,11 +6,12 @@ echo "==========================================="
 if [ -z "$RABBITMQ_URL" ]; then
   export RABBITMQ_URL="amqp://rabbitmq:5672"
   echo "RABBITMQ_URL not set. Using local broker URL (amqp://rabbitmq:5672)."
-  echo "For CloudAMQP, export RABBITMQ_URL=amqps://<user>:<pass>@<host>/<vhost> before running."
+  echo "Starting docker-compose with local-rabbit profile enabled."
+  docker-compose --profile local-rabbit up --build -d
+else
+  echo "RABBITMQ_URL provided. Starting docker-compose without local-rabbit profile."
+  docker-compose up --build -d
 fi
-
-# Build and start all services (RabbitMQ local broker is optional via profile local-rabbit)
-docker-compose up --build -d
 
 echo ""
 echo "Waiting for services to start..."
