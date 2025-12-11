@@ -163,59 +163,34 @@ services:
       sleep 10;
       
       echo 'Creating Order Service...';
-      curl -i -X POST http://kong:8001/services/ \
-        --data name=order-service \
-        --data url=http://order-service:3001;
+      curl -X POST http://kong:8001/services/ \
+        -H 'Content-Type: application/json' \
+        -d '{\"name\":\"order-service\",\"url\":\"http://order-service:3001\"}';
       
       echo 'Creating route for Order Service...';
-      curl -i -X POST http://kong:8001/services/order-service/routes \
-        --data paths[]=/orders \
-        --data methods[]=GET \
-        --data methods[]=POST \
-        --data strip_path=false;
+      curl -X POST http://kong:8001/services/order-service/routes \
+        -H 'Content-Type: application/json' \
+        -d '{\"paths\":[\"/orders\"],\"methods\":[\"GET\",\"POST\"],\"strip_path\":false}';
       
       echo 'Creating Notification Service...';
-      curl -i -X POST http://kong:8001/services/ \
-        --data name=notification-service \
-        --data url=http://notification-service:3002;
+      curl -X POST http://kong:8001/services/ \
+        -H 'Content-Type: application/json' \
+        -d '{\"name\":\"notification-service\",\"url\":\"http://notification-service:3002\"}';
       
       echo 'Creating route for Notification Service...';
-      curl -i -X POST http://kong:8001/services/notification-service/routes \
-        --data paths[]=/notifications \
-        --data methods[]=GET \
-        --data strip_path=false;
+      curl -X POST http://kong:8001/services/notification-service/routes \
+        -H 'Content-Type: application/json' \
+        -d '{\"paths\":[\"/notifications\"],\"methods\":[\"GET\"],\"strip_path\":false}';
       
       echo 'Enabling CORS plugin for Order Service...';
-      curl -i -X POST http://kong:8001/services/order-service/plugins \
-        --data name=cors \
-        --data config.origins=* \
-        --data config.methods=GET \
-        --data config.methods=POST \
-        --data config.methods=PUT \
-        --data config.methods=DELETE \
-        --data config.methods=OPTIONS \
-        --data config.headers=Accept \
-        --data config.headers=Content-Type \
-        --data config.headers=Authorization \
-        --data config.exposed_headers=X-Auth-Token \
-        --data config.credentials=true \
-        --data config.max_age=3600;
+      curl -X POST http://kong:8001/services/order-service/plugins \
+        -H 'Content-Type: application/json' \
+        -d '{\"name\":\"cors\",\"config\":{\"origins\":[\"*\"],\"methods\":[\"GET\",\"POST\",\"PUT\",\"DELETE\",\"OPTIONS\"],\"headers\":[\"Accept\",\"Content-Type\",\"Authorization\"],\"credentials\":true,\"max_age\":3600}}';
       
       echo 'Enabling CORS plugin for Notification Service...';
-      curl -i -X POST http://kong:8001/services/notification-service/plugins \
-        --data name=cors \
-        --data config.origins=* \
-        --data config.methods=GET \
-        --data config.methods=POST \
-        --data config.methods=PUT \
-        --data config.methods=DELETE \
-        --data config.methods=OPTIONS \
-        --data config.headers=Accept \
-        --data config.headers=Content-Type \
-        --data config.headers=Authorization \
-        --data config.exposed_headers=X-Auth-Token \
-        --data config.credentials=true \
-        --data config.max_age=3600;
+      curl -X POST http://kong:8001/services/notification-service/plugins \
+        -H 'Content-Type: application/json' \
+        -d '{\"name\":\"cors\",\"config\":{\"origins\":[\"*\"],\"methods\":[\"GET\",\"POST\",\"PUT\",\"DELETE\",\"OPTIONS\"],\"headers\":[\"Accept\",\"Content-Type\",\"Authorization\"],\"credentials\":true,\"max_age\":3600}}';
       
       echo 'Kong configuration completed!';
       "
