@@ -1,31 +1,23 @@
 # Restaurant Order Management System
 
-A microservices-based restaurant order management system with Kong API Gateway, RabbitMQ message queue, and real-time notification dashboard.
+A microservices/event-driven food ordering simulation (Group A – Week 8) with Kong gateway, RabbitMQ/CloudAMQP, and per-service SQLite persistence.
 
 ## Architecture
 
-- **Frontend**: React application
-- **API Gateway**: Kong Community Edition
-- **Order Service**: Node.js microservice for handling orders
-- **Notification Service**: Node.js microservice for processing notifications
-- **Message Queue**: RabbitMQ for asynchronous communication
-- **Database**: PostgreSQL for Kong
+- **Frontend**: React app (port 3000)
+- **API Gateway**: Kong (ports 8000/8001)
+- **Order Service**: Receives orders, persists to SQLite, emits `order.created`
+- **Restaurant Service**: Consumes `order.created`, persists acceptance, emits `restaurant.accepted`
+- **Delivery Service**: Consumes `restaurant.accepted`, assigns driver, emits `delivery.assigned`
+- **Notification Service**: Consumes all events, persists to SQLite
+- **Message Broker**: RabbitMQ topic exchange `food_events` (set `RABBITMQ_URL` for CloudAMQP; local broker with profile `local-rabbit`)
+- **Database**: PostgreSQL (Kong), SQLite files per service
 
-## Services
-
-### Frontend (Port 3000)
-React-based dashboard for placing orders and viewing notifications in real-time.
-
-### Kong API Gateway (Port 8000)
-Routes incoming requests to appropriate microservices:
-- `/orders` -> Order Service
-- `/notifications` -> Notification Service
-
-### Order Service (Port 3001)
-Handles order creation and publishes messages to RabbitMQ queue.
-
-### Notification Service (Port 3002)
-Consumes messages from RabbitMQ and stores notifications for dashboard display.
+## Services & Routes
+- `/orders` -> Order Service (3001)
+- `/restaurant` -> Restaurant Service (3003)
+- `/delivery` -> Delivery Service (3004)
+- `/notifications` -> Notification Service (3002)
 
 ## Getting Started
 
@@ -42,40 +34,41 @@ git clone <repository-url>
 cd Arch
 ```
 
-2. Start all services:
+2. Start all services (set `RABBITMQ_URL` for CloudAMQP, or use local default):
 ```bash
 docker-compose up --build
+```
+
+To use local RabbitMQ, enable profile:
+```bash
+docker-compose --profile local-rabbit up --build
 ```
 
 3. Access the application:
 - Frontend: http://localhost:3000
 - Kong Admin API: http://localhost:8001
 - Kong Gateway: http://localhost:8000
-- RabbitMQ Management: http://localhost:15672 (guest/guest)
+- RabbitMQ Management (local profile): http://localhost:15672 (guest/guest)
 
 ## Usage
+1) Post orders via gateway: `POST http://localhost:8000/orders`
+2) Poll recent notifications: `GET http://localhost:8000/notifications`
+3) Inspect persistence (service ports): `/restaurant/events`, `/delivery/events`
 
-1. Open the frontend at http://localhost:3000
-2. Fill in the order form with customer details
-3. Submit the order
-4. Watch the notification dashboard update in real-time
-
-## Development
-
-### Project Structure
-```
-Arch/
-├── frontend/           # React frontend application
-├── order-service/      # Order microservice
-├── notification-service/  # Notification microservice
-├── kong/              # Kong configuration
-└── docker-compose.yml # Docker Compose configuration
-```
+## Load Testing (k6)
+- Normal load (50 rps for 2m):
+  ```bash
+  k6 run k6/load-normal.js -e KONG_URL=http://localhost:8000/orders
+  ```
+- Peak load (200 rps for 2m):
+  ```bash
+  k6 run k6/load-peak.js -e KONG_URL=http://localhost:8000/orders
+  ```
 
 ## Environment Variables
-
-Configure services using environment variables in docker-compose.yml
+- `RABBITMQ_URL`: set to your CloudAMQP amqps://… URL; defaults to `amqp://rabbitmq:5672` (local broker/profile)
+- `DB_PATH` per service (defaults to /app/data/*.db)
+  
 
 ## License
-
 MIT

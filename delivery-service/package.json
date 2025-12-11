@@ -1,7 +1,7 @@
 {
-  "name": "order-service",
+  "name": "delivery-service",
   "version": "1.0.0",
-  "description": "Order management microservice",
+  "description": "Delivery assignment microservice",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
@@ -11,10 +11,10 @@
     "amqplib": "^0.10.3",
     "cors": "^2.8.5",
     "express": "^4.18.2",
-    "sqlite3": "^5.1.6",
-    "uuid": "^9.0.1"
+    "sqlite3": "^5.1.6"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
   }
 }
+

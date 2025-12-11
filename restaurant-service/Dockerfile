@@ -12,8 +12,9 @@ RUN apt-get update \
 
 COPY . .
 
-EXPOSE 3001
+EXPOSE 3003
 
 ENV NODE_ENV=production
 
 CMD ["npm", "start"]
+

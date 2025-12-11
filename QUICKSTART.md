@@ -23,6 +23,11 @@ chmod +x start.sh
 docker-compose up --build -d
 ```
 
+Use local RabbitMQ with:
+```bash
+docker-compose --profile local-rabbit up --build -d
+```
+
 ## Step 2: Wait for Services
 
 Wait about 30-60 seconds for all services to start and be configured.
@@ -45,9 +50,8 @@ Open your browser and go to: **http://localhost:3000**
    - Click "Place Order"
 
 2. **View Notifications**:
-   - The notification will appear in the dashboard table
-   - The dashboard auto-refreshes every 3 seconds
-   - Each notification shows order details and timestamp
+   - Fetch via `http://localhost:8000/notifications`
+   - Each notification shows order details, stage, timestamp
 
 ## Step 5: Monitor Services
 
@@ -61,7 +65,7 @@ docker-compose logs -f order-service
 docker-compose logs -f notification-service
 ```
 
-### RabbitMQ Management UI:
+### RabbitMQ Management UI (local profile):
 - URL: http://localhost:15672
 - Username: guest
 - Password: guest
@@ -110,9 +114,11 @@ docker-compose down -v
 ## Architecture Flow
 
 ```
-User → Frontend → Kong Gateway → Order Service → RabbitMQ
-                                                      ↓
-User ← Frontend ← Kong Gateway ← Notification Service
+User → Frontend → Kong Gateway → Order Service → food_events exchange (CloudAMQP/RabbitMQ)
+                                                                   ↓
+                                             Restaurant Service → Delivery Service
+                                                                   ↓
+                         User ← Frontend ← Kong Gateway ← Notification Service
 ```
 
 ## Service URLs
@@ -121,8 +127,10 @@ User ← Frontend ← Kong Gateway ← Notification Service
 - **Kong Gateway**: http://localhost:8000
 - **Kong Admin**: http://localhost:8001
 - **Order Service**: http://localhost:3001
+- **Restaurant Service**: http://localhost:3003
+- **Delivery Service**: http://localhost:3004
 - **Notification Service**: http://localhost:3002
-- **RabbitMQ UI**: http://localhost:15672
+- **RabbitMQ UI (local)**: http://localhost:15672
 
 ## Testing API Directly
 
@@ -142,10 +150,22 @@ curl -X POST http://localhost:8000/orders \
 curl http://localhost:8000/notifications
 ```
 
+### Get Restaurant Events:
+```bash
+curl http://localhost:8000/restaurant/events
+```
+
+### Get Delivery Events:
+```bash
+curl http://localhost:8000/delivery/events
+```
+
 ## Next Steps
 
 - Check `ARCHITECTURE.md` for system design details
 - Check `API_TESTING.md` for more API examples
 - Check `README.md` for complete documentation
+
+Set `RABBITMQ_URL` to your CloudAMQP amqps://... when not running the local broker profile.
 
 Enjoy your Restaurant Order Management System! 🍽️

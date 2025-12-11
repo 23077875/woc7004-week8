@@ -163,6 +163,19 @@ ASYNCHRONOUS (Message Queue - RabbitMQ)
 └──────────────┘
 ```
 
+### Event-Driven Flow (Week 8 – Group A)
+```
+Client → Kong → Order Service ──> food_events (topic exchange)
+                                  ├─ restaurant.q (order.created) → Restaurant Service → emits restaurant.accepted
+                                  │                                                  └─> delivery.q (restaurant.accepted) → Delivery Service → emits delivery.assigned
+                                  └─ notifications.q (#) → Notification Service stores all events
+```
+- Exchange: `food_events` (topic)
+- Routing keys: `order.created`, `restaurant.accepted`, `delivery.assigned`
+- Queues: `restaurant.q`, `delivery.q`, `notifications.q`
+- Broker: CloudAMQP by default (amqps). Local RabbitMQ available via `--profile local-rabbit`.
+- Persistence: per-service SQLite (`/app/data/*.db`) for orders, restaurant decisions, delivery assignments, notifications; Kong still uses PostgreSQL.
+
 ## 5. API Gateway Routing Architecture
 
 ```

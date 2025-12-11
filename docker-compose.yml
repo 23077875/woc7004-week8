@@ -75,6 +75,7 @@ services:
   rabbitmq:
     image: rabbitmq:3.12-management-alpine
     container_name: rabbitmq
+    profiles: ["local-rabbit"] # optional for Apple Silicon users using CloudAMQP
     ports:
       - "5672:5672"   # AMQP
       - "15672:15672" # Management UI
@@ -99,14 +100,14 @@ services:
     container_name: order-service
     environment:
       PORT: 3001
-      RABBITMQ_URL: amqp://rabbitmq:5672
+      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://rabbitmq:5672}
+      DB_PATH: /app/data/order.db
     ports:
       - "3001:3001"
     networks:
       - restaurant-network
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
+    volumes:
+      - order_data:/app/data
     restart: unless-stopped
 
   # Notification Service
@@ -117,14 +118,51 @@ services:
     container_name: notification-service
     environment:
       PORT: 3002
-      RABBITMQ_URL: amqp://rabbitmq:5672
+      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://rabbitmq:5672}
+      DB_PATH: /app/data/notifications.db
     ports:
       - "3002:3002"
     networks:
       - restaurant-network
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
+    volumes:
+      - notification_data:/app/data
+    restart: unless-stopped
+
+  # Restaurant Service
+  restaurant-service:
+    build:
+      context: ./restaurant-service
+      dockerfile: Dockerfile
+    container_name: restaurant-service
+    environment:
+      PORT: 3003
+      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://rabbitmq:5672}
+      DB_PATH: /app/data/restaurant.db
+      RESTAURANT_NAME: Demo Kitchen
+    ports:
+      - "3003:3003"
+    networks:
+      - restaurant-network
+    volumes:
+      - restaurant_data:/app/data
+    restart: unless-stopped
+
+  # Delivery Service
+  delivery-service:
+    build:
+      context: ./delivery-service
+      dockerfile: Dockerfile
+    container_name: delivery-service
+    environment:
+      PORT: 3004
+      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://rabbitmq:5672}
+      DB_PATH: /app/data/delivery.db
+    ports:
+      - "3004:3004"
+    networks:
+      - restaurant-network
+    volumes:
+      - delivery_data:/app/data
     restart: unless-stopped
 
   # Frontend
@@ -155,6 +193,10 @@ services:
       order-service:
         condition: service_started
       notification-service:
+        condition: service_started
+      restaurant-service:
+        condition: service_started
+      delivery-service:
         condition: service_started
     entrypoint: /bin/sh
     command: >
@@ -191,6 +233,36 @@ services:
       curl -X POST http://kong:8001/services/notification-service/plugins \
         -H 'Content-Type: application/json' \
         -d '{\"name\":\"cors\",\"config\":{\"origins\":[\"*\"],\"methods\":[\"GET\",\"POST\",\"PUT\",\"DELETE\",\"OPTIONS\"],\"headers\":[\"Accept\",\"Content-Type\",\"Authorization\"],\"credentials\":true,\"max_age\":3600}}';
+
+      echo 'Creating Restaurant Service...';
+      curl -X POST http://kong:8001/services/ \
+        -H 'Content-Type: application/json' \
+        -d '{\"name\":\"restaurant-service\",\"url\":\"http://restaurant-service:3003\"}';
+
+      echo 'Creating route for Restaurant Service...';
+      curl -X POST http://kong:8001/services/restaurant-service/routes \
+        -H 'Content-Type: application/json' \
+        -d '{\"paths\":[\"/restaurant\"],\"methods\":[\"GET\",\"OPTIONS\"],\"strip_path\":false}';
+
+      echo 'Creating Delivery Service...';
+      curl -X POST http://kong:8001/services/ \
+        -H 'Content-Type: application/json' \
+        -d '{\"name\":\"delivery-service\",\"url\":\"http://delivery-service:3004\"}';
+
+      echo 'Creating route for Delivery Service...';
+      curl -X POST http://kong:8001/services/delivery-service/routes \
+        -H 'Content-Type: application/json' \
+        -d '{\"paths\":[\"/delivery\"],\"methods\":[\"GET\",\"OPTIONS\"],\"strip_path\":false}';
+
+      echo 'Enabling CORS plugin for Restaurant Service...';
+      curl -X POST http://kong:8001/services/restaurant-service/plugins \
+        -H 'Content-Type: application/json' \
+        -d '{\"name\":\"cors\",\"config\":{\"origins\":[\"*\"],\"methods\":[\"GET\",\"POST\",\"PUT\",\"DELETE\",\"OPTIONS\"],\"headers\":[\"Accept\",\"Content-Type\",\"Authorization\"],\"credentials\":true,\"max_age\":3600}}';
+
+      echo 'Enabling CORS plugin for Delivery Service...';
+      curl -X POST http://kong:8001/services/delivery-service/plugins \
+        -H 'Content-Type: application/json' \
+        -d '{\"name\":\"cors\",\"config\":{\"origins\":[\"*\"],\"methods\":[\"GET\",\"POST\",\"PUT\",\"DELETE\",\"OPTIONS\"],\"headers\":[\"Accept\",\"Content-Type\",\"Authorization\"],\"credentials\":true,\"max_age\":3600}}';
       
       echo 'Kong configuration completed!';
       "
@@ -203,3 +275,7 @@ networks:
 volumes:
   kong_data:
   rabbitmq_data:
+  order_data:
+  notification_data:
+  restaurant_data:
+  delivery_data:

@@ -36,3 +36,7 @@ logs/
 # Temporary files
 tmp/
 temp/
+
+._*
+
+pnpm-lock.yaml
