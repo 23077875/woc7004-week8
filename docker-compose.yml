@@ -170,7 +170,7 @@ services:
       echo 'Creating route for Order Service...';
       curl -X POST http://kong:8001/services/order-service/routes \
         -H 'Content-Type: application/json' \
-        -d '{\"paths\":[\"/orders\"],\"methods\":[\"GET\",\"POST\"],\"strip_path\":false}';
+        -d '{\"paths\":[\"/orders\"],\"methods\":[\"GET\",\"POST\",\"OPTIONS\"],\"strip_path\":false}';
       
       echo 'Creating Notification Service...';
       curl -X POST http://kong:8001/services/ \
@@ -180,7 +180,7 @@ services:
       echo 'Creating route for Notification Service...';
       curl -X POST http://kong:8001/services/notification-service/routes \
         -H 'Content-Type: application/json' \
-        -d '{\"paths\":[\"/notifications\"],\"methods\":[\"GET\"],\"strip_path\":false}';
+        -d '{\"paths\":[\"/notifications\"],\"methods\":[\"GET\",\"OPTIONS\"],\"strip_path\":false}';
       
       echo 'Enabling CORS plugin for Order Service...';
       curl -X POST http://kong:8001/services/order-service/plugins \
