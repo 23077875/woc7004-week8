@@ -50,6 +50,10 @@ docker-compose --profile local-rabbit up --build
 - Kong Gateway: http://localhost:8000
 - RabbitMQ Management (local profile): http://localhost:15672 (guest/guest)
 
+Frontend API base:
+- Copy `frontend/env.example` to `frontend/.env` (or `.env.local`) and set `REACT_APP_API_BASE_URL`.
+- Common values: `http://localhost:8000` (via Kong) or `http://localhost:3001` (direct order-service).
+
 ## Usage
 1) Post orders via gateway: `POST http://localhost:8000/orders`
 2) Poll recent notifications: `GET http://localhost:8000/notifications`
@@ -68,6 +72,7 @@ docker-compose --profile local-rabbit up --build
 ## Environment Variables
 - `RABBITMQ_URL`: set to your CloudAMQP amqps://… URL; defaults to `amqp://rabbitmq:5672` (local broker/profile)
 - `DB_PATH` per service (defaults to /app/data/*.db)
+- `REACT_APP_API_BASE_URL`: frontend base URL for API calls (e.g., `http://localhost:8000` for Kong or `http://localhost:3001` direct)
   
 
 ## License

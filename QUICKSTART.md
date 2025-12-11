@@ -37,6 +37,13 @@ You can check the status with:
 docker-compose ps
 ```
 
+## Step 2.5: Configure Frontend API Base (if needed)
+
+- Copy `frontend/env.example` to `frontend/.env` (or `.env.local`).
+- Set `REACT_APP_API_BASE_URL`:
+  - `http://localhost:8000` when using Kong gateway (default).
+  - `http://localhost:3001` to call order-service directly.
+
 ## Step 3: Access the Application
 
 Open your browser and go to: **http://localhost:3000**
