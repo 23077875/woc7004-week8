@@ -5,8 +5,9 @@
   "scripts": {
     "bootstrap": "pnpm install --recursive",
     "dev:services": "pnpm -r --filter \"*-service\" dev --parallel --stream",
-    "dev:frontend": "pnpm --filter frontend dev",
-    "dev:all": "pnpm -r --filter \"*-service\" --filter frontend dev --parallel --stream",
+    "dev:frontend": "pnpm --filter \"./frontend\" dev",
+    "dev:all": "pnpm -r --filter \"*-service\" --filter \"./frontend\" dev --parallel --stream",
+    "clean:dbs": "node scripts/clean-dbs.js",
     "k6:normal": "k6 run k6/load-normal.js",
     "k6:peak": "k6 run k6/load-peak.js"
   }
