@@ -40,3 +40,5 @@ temp/
 ._*
 
 pnpm-lock.yaml
+
+data/

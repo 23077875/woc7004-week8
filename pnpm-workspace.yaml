@@ -1,0 +1,7 @@
+packages:
+  - frontend
+  - order-service
+  - notification-service
+  - restaurant-service
+  - delivery-service
+
