@@ -1,7 +1,7 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 
-const TARGET = __ENV.KONG_URL || 'http://localhost:8000/orders';
+const TARGET = __ENV.KONG_URL || __ENV.ORDER_URL || 'http://localhost:3001/orders';
 
 export const options = {
   scenarios: {
